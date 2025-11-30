@@ -78,18 +78,24 @@ export const verifySecret = async ({
   try {
     const { account } = await createAdminClient();
 
+    // For email token (OTP) verification, use createSession with userId and OTP
+    // The accountId is the userId returned from createEmailToken
     const session = await account.createSession(accountId, password);
+
+    // Set secure to false in development, true in production
+    const isProduction = process.env.NODE_ENV === "production";
 
     (await cookies()).set("appwrite-session", session.secret, {
       path: "/",
       httpOnly: true,
       sameSite: "strict",
-      secure: true,
+      secure: isProduction,
     });
 
-    return parseStringify({ sessionId: session.$id });
+    return parseStringify({ sessionId: session.$id, success: true });
   } catch (error) {
-    handleError(error, "Failed to verify OTP");
+    console.error("OTP verification error:", error);
+    throw error; // Re-throw to be caught by the client
   }
 };
 
@@ -109,7 +115,8 @@ export const getCurrentUser = async () => {
 
     return parseStringify(user.documents[0]);
   } catch (error) {
-    console.log(error);
+    // Return null when there's no session or any other error
+    return null;
   }
 };
 

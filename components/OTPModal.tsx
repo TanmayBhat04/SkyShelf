@@ -37,19 +37,24 @@ const OtpModal = ({
     e.preventDefault();
     setIsLoading(true);
 
-    console.log({ accountId, password });
-
     try {
-      const sessionId = await verifySecret({ accountId, password });
+      const result = await verifySecret({ accountId, password });
 
-      console.log({ sessionId });
+      console.log({ result });
 
-      if (sessionId) router.push("/");
+      if (result && result.success) {
+        // Use window.location to ensure a full page reload and cookie pickup
+        window.location.href = "/";
+      } else {
+        console.error("OTP verification failed");
+        alert("Invalid OTP. Please try again.");
+      }
     } catch (error) {
-      console.log("Failed to verify OTP", error);
+      console.error("Failed to verify OTP", error);
+      alert("Failed to verify OTP. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   const handleResendOtp = async () => {

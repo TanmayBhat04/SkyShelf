@@ -36,7 +36,7 @@ export const uploadFile = async ({
       url: constructFileUrl(bucketFile.$id),
       extension: getFileType(bucketFile.name).extension,
       size: bucketFile.sizeOriginal,
-      owner: ownerId,
+      user: ownerId,
       accountId,
       users: [],
       bucketFileId: bucketFile.$id,
@@ -70,7 +70,7 @@ const createQueries = (
 ) => {
   const queries = [
     Query.or([
-      Query.equal("owner", [currentUser.$id]),
+      Query.equal("user", [currentUser.$id]),
       Query.contains("users", [currentUser.email]),
     ]),
   ];
@@ -96,12 +96,18 @@ export const getFiles = async ({
   sort = "$createdAt-desc",
   limit,
 }: GetFilesProps) => {
-  const { databases } = await createAdminClient();
-
   try {
     const currentUser = await getCurrentUser();
 
-    if (!currentUser) throw new Error("User not found");
+    if (!currentUser) {
+      // Return empty files result when user is not authenticated
+      return parseStringify({
+        documents: [],
+        total: 0,
+      });
+    }
+
+    const { databases } = await createAdminClient();
 
     const queries = createQueries(currentUser, types, searchText, sort, limit);
 
@@ -196,14 +202,26 @@ export const deleteFile = async ({
 // ============================== TOTAL FILE SPACE USED
 export async function getTotalSpaceUsed() {
   try {
-    const { databases } = await createSessionClient();
     const currentUser = await getCurrentUser();
-    if (!currentUser) throw new Error("User is not authenticated.");
+    if (!currentUser) {
+      // Return default empty space when user is not authenticated
+      return parseStringify({
+        image: { size: 0, latestDate: "" },
+        document: { size: 0, latestDate: "" },
+        video: { size: 0, latestDate: "" },
+        audio: { size: 0, latestDate: "" },
+        other: { size: 0, latestDate: "" },
+        used: 0,
+        all: 2 * 1024 * 1024 * 1024 /* 2GB available bucket storage */,
+      });
+    }
+
+    const { databases } = await createSessionClient();
 
     const files = await databases.listDocuments(
       appwriteConfig.databaseId,
       appwriteConfig.filesCollectionId,
-      [Query.equal("owner", [currentUser.$id])],
+      [Query.equal("user", [currentUser.$id])],
     );
 
     const totalSpace = {
@@ -231,6 +249,15 @@ export async function getTotalSpaceUsed() {
 
     return parseStringify(totalSpace);
   } catch (error) {
-    handleError(error, "Error calculating total space used:, ");
+    // Return default empty space on error
+    return parseStringify({
+      image: { size: 0, latestDate: "" },
+      document: { size: 0, latestDate: "" },
+      video: { size: 0, latestDate: "" },
+      audio: { size: 0, latestDate: "" },
+      other: { size: 0, latestDate: "" },
+      used: 0,
+      all: 2 * 1024 * 1024 * 1024 /* 2GB available bucket storage */,
+    });
   }
 }
